@@ -166,3 +166,61 @@ describe('bill persistence', () => {
     expect(shares.results).toEqual([])
   })
 })
+
+describe('bill listing', () => {
+  it('returns an empty list for a home without bills', async () => {
+    const { homeId } = await createHome([])
+
+    const response = await call('GET', `/api/homes/${homeId}/bills`)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ bills: [] })
+  })
+
+  it('lists three bills newest first and matches POST with shares in member order', async () => {
+    const { homeId, members } = await createHome(['Zoya', 'Asha', 'Mina'])
+    const created: Bill[] = []
+    for (const [index, totalCents] of [1000, 2, 3000].entries()) {
+      const response = await call<Bill>('POST', `/api/homes/${homeId}/bills`, {
+        body: { title: ` \tBill ${index + 1}\n `, totalCents },
+      })
+      expect(response.status).toBe(201)
+      expect(response.body.title).toBe(`Bill ${index + 1}`)
+      created.push(response.body)
+    }
+
+    const response = await call<{ bills: Bill[] }>('GET', `/api/homes/${homeId}/bills`)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ bills: [...created].reverse() })
+    for (const bill of response.body.bills) {
+      expect(bill.shares.map((share) => share.memberId)).toEqual(members.map((member) => member.id))
+      expect(bill.shares.every((share) => share.paidAt === null)).toBe(true)
+      expect(bill.shares.reduce((sum, share) => sum + share.amountCents, 0)).toBe(bill.totalCents)
+    }
+  })
+
+  it('lists only the selected home bills and shares', async () => {
+    const first = await createHome(['Asha'])
+    const second = await createHome(['Ben'])
+    const firstBill = await createBill(first.homeId, 1000)
+    const secondBill = await createBill(second.homeId, 2000)
+    expect(firstBill.status).toBe(201)
+    expect(secondBill.status).toBe(201)
+
+    const firstList = await call('GET', `/api/homes/${first.homeId}/bills`)
+    const secondList = await call('GET', `/api/homes/${second.homeId}/bills`)
+
+    expect(firstList.status).toBe(200)
+    expect(secondList.status).toBe(200)
+    expect(firstList.body).toEqual({ bills: [firstBill.body] })
+    expect(secondList.body).toEqual({ bills: [secondBill.body] })
+  })
+
+  it('returns JSON 404 for a missing home', async () => {
+    const response = await call('GET', '/api/homes/does-not-exist/bills')
+
+    expect(response.status).toBe(404)
+    expect(response.body).toEqual({ error: 'home not found' })
+  })
+})
