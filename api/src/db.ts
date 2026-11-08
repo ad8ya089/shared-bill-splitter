@@ -19,6 +19,13 @@ export function insertHome(db: D1Database, home: HomeRow) {
     .run()
 }
 
+export function insertMember(db: D1Database, member: Omit<MemberRow, 'seq'>) {
+  return db
+    .prepare('INSERT INTO members (id, home_id, name, created_at) VALUES (?, ?, ?, ?)')
+    .bind(member.id, member.home_id, member.name, member.created_at)
+    .run()
+}
+
 export function findHome(db: D1Database, id: string): Promise<HomeRow | null> {
   return db.prepare('SELECT id, name, created_at FROM homes WHERE id = ?').bind(id).first<HomeRow>()
 }
