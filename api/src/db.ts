@@ -179,3 +179,22 @@ export async function payShare(
     },
   }
 }
+
+export type BalanceRow = { memberId: string; name: string; outstandingCents: number }
+
+export async function listBalances(db: D1Database, homeId: string): Promise<BalanceRow[]> {
+  const { results: balances } = await db
+    .prepare(
+      `SELECT m.id AS memberId, m.name AS name,
+              COALESCE(SUM(CASE WHEN s.paid_at IS NULL THEN s.amount_cents END), 0) AS outstandingCents
+       FROM members m
+       LEFT JOIN shares s ON s.member_id = m.id
+       WHERE m.home_id = ?
+       GROUP BY m.id
+       ORDER BY m.seq`,
+    )
+    .bind(homeId)
+    .all<BalanceRow>()
+
+  return balances
+}
