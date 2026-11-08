@@ -196,5 +196,11 @@ export async function listBalances(db: D1Database, homeId: string): Promise<Bala
     .bind(homeId)
     .all<BalanceRow>()
 
+  for (const balance of balances) {
+    if (!Number.isSafeInteger(balance.outstandingCents)) {
+      throw new RangeError('outstanding cents exceed the safe integer range')
+    }
+  }
+
   return balances
 }
