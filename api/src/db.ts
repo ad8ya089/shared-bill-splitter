@@ -141,3 +141,41 @@ export async function listBillsWithShares(
 
   return [...byId.values()]
 }
+
+export async function payShare(
+  db: D1Database,
+  billId: string,
+  shareId: string,
+  key: string,
+): Promise<
+  | { status: 'paid' | 'replayed'; share: BillShare }
+  | { status: 'already paid' }
+  | { status: 'missing' }
+> {
+  const payment = await db
+    .prepare(
+      `UPDATE shares SET paid_at = ?, paid_idempotency_key = ?
+       WHERE id = ? AND bill_id = ? AND paid_at IS NULL`,
+    )
+    .bind(new Date().toISOString(), key, shareId, billId)
+    .run()
+  const row = await db
+    .prepare('SELECT * FROM shares WHERE id = ? AND bill_id = ?')
+    .bind(shareId, billId)
+    .first<ShareRow>()
+
+  if (!row) return { status: 'missing' }
+  if (payment.meta.changes === 0 && row.paid_idempotency_key !== key) {
+    return { status: 'already paid' }
+  }
+
+  return {
+    status: payment.meta.changes === 1 ? 'paid' : 'replayed',
+    share: {
+      id: row.id,
+      memberId: row.member_id,
+      amountCents: row.amount_cents,
+      paidAt: row.paid_at,
+    },
+  }
+}
