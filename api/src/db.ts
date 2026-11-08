@@ -95,3 +95,49 @@ export function createBillWithShares(
     ),
   ])
 }
+
+export async function listBillsWithShares(
+  db: D1Database,
+  homeId: string,
+): Promise<BillWithShares[]> {
+  const { results: bills } = await db
+    .prepare(
+      `SELECT b.seq, b.id, b.home_id, b.title, b.total_cents, b.created_at
+       FROM bills AS b WHERE b.home_id = ? ORDER BY b.seq DESC`,
+    )
+    .bind(homeId)
+    .all<BillRow>()
+  const { results: shares } = await db
+    .prepare(
+      `SELECT s.* FROM shares AS s
+       JOIN bills AS b ON b.id = s.bill_id
+       JOIN members AS m ON m.id = s.member_id
+       WHERE b.home_id = ? ORDER BY b.seq DESC, m.seq`,
+    )
+    .bind(homeId)
+    .all<ShareRow>()
+
+  const byId = new Map<string, BillWithShares>()
+  for (const bill of bills) {
+    byId.set(bill.id, {
+      id: bill.id,
+      homeId: bill.home_id,
+      title: bill.title,
+      totalCents: bill.total_cents,
+      shares: [],
+    })
+  }
+  for (const share of shares) {
+    const bill = byId.get(share.bill_id)
+    if (bill) {
+      bill.shares.push({
+        id: share.id,
+        memberId: share.member_id,
+        amountCents: share.amount_cents,
+        paidAt: share.paid_at,
+      })
+    }
+  }
+
+  return [...byId.values()]
+}
