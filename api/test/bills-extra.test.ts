@@ -224,3 +224,33 @@ describe('bill listing', () => {
     expect(response.body).toEqual({ error: 'home not found' })
   })
 })
+
+describe('safe amount boundary', () => {
+  it('round-trips the largest safe amount and rejects the next integer', async () => {
+    const { homeId } = await createHome(['Asha', 'Ben', 'Chitra'])
+
+    const created = await createBill(homeId, Number.MAX_SAFE_INTEGER)
+
+    expect(created.status).toBe(201)
+    expect(created.body.totalCents).toBe(Number.MAX_SAFE_INTEGER)
+    expect(created.body.shares).toHaveLength(3)
+    expect(created.body.shares.map((share) => share.amountCents)).toEqual([
+      3002399751580331, 3002399751580330, 3002399751580330,
+    ])
+    expect(created.body.shares.reduce((sum, share) => sum + share.amountCents, 0)).toBe(
+      Number.MAX_SAFE_INTEGER,
+    )
+
+    const listed = await call<{ bills: Bill[] }>('GET', `/api/homes/${homeId}/bills`)
+    expect(listed.status).toBe(200)
+    expect(listed.body).toEqual({ bills: [created.body] })
+
+    const unsafe = await createBill(homeId, Number.MAX_SAFE_INTEGER + 1)
+    expect(unsafe.status).toBe(422)
+    expect(unsafe.body).toEqual({ error: expect.stringMatching(/totalCents/) })
+
+    const afterRejected = await call('GET', `/api/homes/${homeId}/bills`)
+    expect(afterRejected.status).toBe(200)
+    expect(afterRejected.body).toEqual({ bills: [created.body] })
+  })
+})
