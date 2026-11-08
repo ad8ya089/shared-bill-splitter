@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { createBillWithShares, findHome, listMembers } from '../db'
+import { createBillWithShares, findHome, listBillsWithShares, listMembers } from '../db'
 import { jsonError, readJsonBody } from '../http'
 import { splitCents } from '../split'
 import { parseCreateBill } from '../validation'
@@ -27,6 +27,14 @@ bills.post('/api/homes/:homeId/bills', async (c) => {
   await createBillWithShares(c.env.DB, bill)
 
   return c.json(bill, 201)
+})
+
+bills.get('/api/homes/:homeId/bills', async (c) => {
+  const homeId = c.req.param('homeId')
+  const home = await findHome(c.env.DB, homeId)
+  if (!home) return jsonError(c, 404, 'home not found')
+
+  return c.json({ bills: await listBillsWithShares(c.env.DB, homeId) })
 })
 
 export default bills
