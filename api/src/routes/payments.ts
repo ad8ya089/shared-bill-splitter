@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { payShare } from '../db'
+import { findHome, listBalances, payShare } from '../db'
 import { jsonError } from '../http'
 import { parseIdempotencyKey } from '../validation'
 
@@ -14,6 +14,14 @@ payments.post('/api/bills/:billId/shares/:shareId/pay', async (c) => {
   if (payment.status === 'already paid') return jsonError(c, 409, 'share already paid')
 
   return c.json(payment.share)
+})
+
+payments.get('/api/homes/:homeId/balances', async (c) => {
+  const homeId = c.req.param('homeId')
+  const home = await findHome(c.env.DB, homeId)
+  if (!home) return jsonError(c, 404, 'home not found')
+
+  return c.json({ balances: await listBalances(c.env.DB, homeId) })
 })
 
 export default payments
