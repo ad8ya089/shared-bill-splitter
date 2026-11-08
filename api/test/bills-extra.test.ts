@@ -1,6 +1,6 @@
 import { exports } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
-import { call, createHome } from './helpers'
+import { type Bill, call, createBill, createHome } from './helpers'
 
 describe('bill request validation', () => {
   it.each([
@@ -87,5 +87,25 @@ describe('bill request validation', () => {
 
     expect(response.status).toBe(422)
     expect(response.body).toEqual({ error: 'home has no members' })
+  })
+})
+
+describe('bill persistence', () => {
+  it('stores and lists zero-cent shares when two cents are split across three members', async () => {
+    const { homeId, members } = await createHome(['Asha', 'Ben', 'Chitra'])
+
+    const created = await createBill(homeId, 2)
+
+    expect(created.status).toBe(201)
+    expect(created.body.shares.map((share) => share.memberId)).toEqual(
+      members.map((member) => member.id),
+    )
+    expect(created.body.shares.map((share) => share.amountCents)).toEqual([1, 1, 0])
+    expect(created.body.shares.reduce((sum, share) => sum + share.amountCents, 0)).toBe(2)
+
+    const listed = await call<{ bills: Bill[] }>('GET', `/api/homes/${homeId}/bills`)
+
+    expect(listed.status).toBe(200)
+    expect(listed.body).toEqual({ bills: [created.body] })
   })
 })
