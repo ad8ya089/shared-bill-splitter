@@ -1,6 +1,6 @@
 import { exports } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
-import { type Bill, call, createBill, createHome } from './helpers'
+import { type Bill, call, createBill, createHome, type Member } from './helpers'
 
 describe('bill request validation', () => {
   it.each([
@@ -107,5 +107,33 @@ describe('bill persistence', () => {
 
     expect(listed.status).toBe(200)
     expect(listed.body).toEqual({ bills: [created.body] })
+  })
+
+  it('keeps existing bills unchanged when a later member joins', async () => {
+    const { homeId, members } = await createHome(['Asha', 'Ben'])
+    const original = await createBill(homeId, 1000)
+    expect(original.status).toBe(201)
+    expect(original.body.shares.map((share) => share.amountCents)).toEqual([500, 500])
+
+    const added = await call<Member>('POST', `/api/homes/${homeId}/members`, {
+      body: { name: 'Chitra' },
+    })
+    expect(added.status).toBe(201)
+
+    const afterJoining = await call<{ bills: Bill[] }>('GET', `/api/homes/${homeId}/bills`)
+    expect(afterJoining.status).toBe(200)
+    expect(afterJoining.body).toEqual({ bills: [original.body] })
+
+    const next = await createBill(homeId, 1000)
+    expect(next.status).toBe(201)
+    expect(next.body.shares.map((share) => share.memberId)).toEqual([
+      ...members.map((member) => member.id),
+      added.body.id,
+    ])
+    expect(next.body.shares.map((share) => share.amountCents)).toEqual([334, 333, 333])
+
+    const final = await call<{ bills: Bill[] }>('GET', `/api/homes/${homeId}/bills`)
+    expect(final.status).toBe(200)
+    expect(final.body).toEqual({ bills: [next.body, original.body] })
   })
 })
