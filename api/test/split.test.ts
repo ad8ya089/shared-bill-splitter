@@ -49,4 +49,18 @@ describe('splitCents', () => {
       }
     }
   })
+
+  it.each([0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects an invalid member count of %s',
+    (members) => {
+      expect(() => splitCents(1000, members)).toThrow(RangeError)
+    },
+  )
+
+  it.each([0, -1, 10.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects an invalid total of %s',
+    (total) => {
+      expect(() => splitCents(total, 3)).toThrow(RangeError)
+    },
+  )
 })
