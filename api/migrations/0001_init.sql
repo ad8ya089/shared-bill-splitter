@@ -15,6 +15,7 @@ CREATE TABLE members (
   CONSTRAINT fk_members_home FOREIGN KEY (home_id) REFERENCES homes (id),
   CONSTRAINT ck_members_name_not_blank CHECK (length(trim(name)) > 0)
 );
+CREATE INDEX idx_members_home_seq ON members (home_id, seq);
 
 CREATE TABLE bills (
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,6 +29,7 @@ CREATE TABLE bills (
   CONSTRAINT ck_bills_total_positive CHECK (typeof(total_cents) = 'integer' AND total_cents > 0),
   CONSTRAINT ck_bills_title_not_blank CHECK (length(trim(title)) > 0)
 );
+CREATE INDEX idx_bills_home_seq ON bills (home_id, seq);
 
 CREATE TABLE shares (
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,3 +46,4 @@ CREATE TABLE shares (
   CONSTRAINT ck_shares_amount_nonneg CHECK (typeof(amount_cents) = 'integer' AND amount_cents >= 0),
   CONSTRAINT ck_shares_paid_pair CHECK ((paid_at IS NULL) = (paid_idempotency_key IS NULL))
 );
+CREATE INDEX idx_shares_member ON shares (member_id);
