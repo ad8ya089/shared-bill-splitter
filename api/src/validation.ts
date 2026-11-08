@@ -35,3 +35,17 @@ export function parseTotalCents(value: unknown): ParseResult<number> {
 
   return { ok: true, value }
 }
+
+export function parseCreateBill(body: unknown): ParseResult<{ title: string; totalCents: number }> {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return { ok: false, error: 'body must be an object with a title and totalCents' }
+  }
+
+  const title = parseText('title' in body ? body.title : undefined, 'title')
+  if (!title.ok) return title
+
+  const totalCents = parseTotalCents('totalCents' in body ? body.totalCents : undefined)
+  if (!totalCents.ok) return totalCents
+
+  return { ok: true, value: { title: title.value, totalCents: totalCents.value } }
+}
