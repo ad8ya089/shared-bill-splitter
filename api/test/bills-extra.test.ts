@@ -1,5 +1,6 @@
-import { exports } from 'cloudflare:workers'
+import { env, exports } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
+import { createBillWithShares } from '../src/db'
 import { type Bill, call, createBill, createHome, type Member } from './helpers'
 
 describe('bill request validation', () => {
@@ -135,5 +136,33 @@ describe('bill persistence', () => {
     const final = await call<{ bills: Bill[] }>('GET', `/api/homes/${homeId}/bills`)
     expect(final.status).toBe(200)
     expect(final.body).toEqual({ bills: [next.body, original.body] })
+  })
+
+  it('rolls back the bill and all shares when a member appears twice', async () => {
+    const { homeId, members } = await createHome(['Asha'])
+    const member = members[0]
+    if (!member) throw new Error('test home has no member')
+    const billId = crypto.randomUUID()
+
+    await expect(
+      createBillWithShares(env.DB, {
+        id: billId,
+        homeId,
+        title: 'Electricity',
+        totalCents: 1000,
+        shares: [
+          { id: crypto.randomUUID(), memberId: member.id, amountCents: 500 },
+          { id: crypto.randomUUID(), memberId: member.id, amountCents: 500 },
+        ],
+      }),
+    ).rejects.toThrow()
+
+    const bill = await env.DB.prepare('SELECT id FROM bills WHERE id = ?').bind(billId).first()
+    const shares = await env.DB.prepare('SELECT id FROM shares WHERE bill_id = ?')
+      .bind(billId)
+      .all()
+
+    expect(bill).toBeNull()
+    expect(shares.results).toEqual([])
   })
 })
