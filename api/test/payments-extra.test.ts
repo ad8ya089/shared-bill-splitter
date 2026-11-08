@@ -96,3 +96,68 @@ describe('payment edge cases', () => {
     )
   })
 })
+
+describe('simultaneous payments', () => {
+  it.each(['different', 'same'])('handles ten requests with %s keys', async (keys) => {
+    const { homeId, bill, share } = await setup()
+    const extra = await createBill(homeId, 200)
+    expect(extra.status).toBe(201)
+    const before = await call<{ balances: Balance[] }>('GET', `/api/homes/${homeId}/balances`)
+    expect(before.body.balances.map((member) => member.outstandingCents)).toEqual([600, 600])
+
+    const payments = await Promise.all(
+      Array.from({ length: 10 }, (_, index) =>
+        pay(bill.id, share.id, keys === 'same' ? 'same-key' : `key-${index}`),
+      ),
+    )
+    expect(payments.filter((payment) => payment.status === 200)).toHaveLength(
+      keys === 'same' ? 10 : 1,
+    )
+    expect(payments.filter((payment) => payment.status === 409)).toHaveLength(
+      keys === 'same' ? 0 : 9,
+    )
+    const winner = payments.find((payment) => payment.status === 200)
+    if (!winner) throw new Error('payment has no winner')
+    expect(winner.body).toEqual({ ...share, paidAt: expect.any(String) })
+    if (keys === 'same') {
+      for (const payment of payments) expect(payment.body).toEqual(winner.body)
+    }
+
+    const listed = await call<{ bills: Bill[] }>('GET', `/api/homes/${homeId}/bills`)
+    const stored = listed.body.bills.find((entry) => entry.id === bill.id)
+    expect(stored?.shares[0]).toEqual(winner.body)
+    const after = await call<{ balances: Balance[] }>('GET', `/api/homes/${homeId}/balances`)
+    expect(after.status).toBe(200)
+    expect(after.body.balances.map((member) => member.outstandingCents)).toEqual([100, 600])
+  })
+
+  it('pays five shares once each when four keys compete for every share', async () => {
+    const { homeId } = await createHome(['Asha', 'Ben', 'Chitra', 'Dev', 'Esha'])
+    const bill = await createBill(homeId, 1000)
+    expect(bill.status).toBe(201)
+    const before = await call<{ balances: Balance[] }>('GET', `/api/homes/${homeId}/balances`)
+    expect(before.body.balances.map((member) => member.outstandingCents)).toEqual([
+      200, 200, 200, 200, 200,
+    ])
+
+    const payments = await Promise.all(
+      bill.body.shares.flatMap((share) =>
+        Array.from({ length: 4 }, (_, index) => pay(bill.body.id, share.id, `key-${index}`)),
+      ),
+    )
+    const winners = payments.filter((payment) => payment.status === 200)
+    expect(winners).toHaveLength(5)
+    expect(new Set(winners.map((payment) => payment.body.id)).size).toBe(5)
+    expect(payments.filter((payment) => payment.status === 409)).toHaveLength(15)
+    const listed = await call<{ bills: Bill[] }>('GET', `/api/homes/${homeId}/bills`)
+    expect(listed.status).toBe(200)
+    for (const winner of winners) {
+      expect(listed.body.bills[0]?.shares.find((share) => share.id === winner.body.id)).toEqual(
+        winner.body,
+      )
+    }
+    const after = await call<{ balances: Balance[] }>('GET', `/api/homes/${homeId}/balances`)
+    expect(after.status).toBe(200)
+    expect(after.body.balances.map((member) => member.outstandingCents)).toEqual([0, 0, 0, 0, 0])
+  })
+})
