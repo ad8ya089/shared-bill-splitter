@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { jsonError } from './http'
+import bills from './routes/bills'
 import homes from './routes/homes'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -7,6 +8,7 @@ const app = new Hono<{ Bindings: Env }>()
 app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
 app.route('/', homes)
+app.route('/', bills)
 
 app.notFound((c) => jsonError(c, 404, 'not found'))
 
