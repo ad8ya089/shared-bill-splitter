@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { findHome, insertHome, insertMember } from '../db'
+import { findHome, insertHome, insertMember, listMembers } from '../db'
 import { jsonError, readJsonBody } from '../http'
 import { parseCreateNamed } from '../validation'
 
@@ -36,6 +36,19 @@ homes.post('/api/homes/:homeId/members', async (c) => {
   await insertMember(c.env.DB, member)
 
   return c.json({ id: member.id, homeId, name: member.name }, 201)
+})
+
+homes.get('/api/homes/:homeId', async (c) => {
+  const homeId = c.req.param('homeId')
+  const home = await findHome(c.env.DB, homeId)
+  if (!home) return jsonError(c, 404, 'home not found')
+
+  const members = await listMembers(c.env.DB, homeId)
+  return c.json({
+    id: home.id,
+    name: home.name,
+    members: members.map((member) => ({ id: member.id, homeId, name: member.name })),
+  })
 })
 
 export default homes
