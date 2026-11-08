@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { parseCreateBill, parseCreateNamed, parseName, parseTotalCents } from '../src/validation'
+import {
+  parseCreateBill,
+  parseCreateNamed,
+  parseIdempotencyKey,
+  parseName,
+  parseTotalCents,
+} from '../src/validation'
 
 const validNames = [
   { label: 'a valid name', input: 'Flat 4B', expected: 'Flat 4B' },
@@ -121,5 +127,20 @@ describe('parseCreateBill', () => {
     { label: 'a missing amount', body: { title: 'Electricity' } },
   ])('rejects $label as the body', ({ body }) => {
     expect(parseCreateBill(body)).toEqual({ ok: false, error: expect.stringMatching(/\S/) })
+  })
+})
+
+describe('parseIdempotencyKey', () => {
+  it.each([undefined, '', '   ', 'a'.repeat(256)])('rejects the key %j', (key) => {
+    expect(parseIdempotencyKey(key)).toEqual({ ok: false, error: expect.any(String) })
+  })
+
+  it('trims a padded key', () => {
+    expect(parseIdempotencyKey('  payment-key  ')).toEqual({ ok: true, value: 'payment-key' })
+  })
+
+  it('accepts 255 characters', () => {
+    const key = 'a'.repeat(255)
+    expect(parseIdempotencyKey(key)).toEqual({ ok: true, value: key })
   })
 })
