@@ -13,4 +13,40 @@ describe('splitCents', () => {
   ])('splits $total cents between $members members', ({ total, members, expected }) => {
     expect(splitCents(total, members)).toEqual(expected)
   })
+
+  function expectInvariants(total: number, memberCount: number) {
+    const shares = splitCents(total, memberCount)
+
+    expect(shares).toHaveLength(memberCount)
+    expect(shares.reduce((sum, share) => sum + share, 0)).toBe(total)
+    expect(shares.every((share) => Number.isSafeInteger(share) && share >= 0)).toBe(true)
+    expect(Math.max(...shares) - Math.min(...shares)).toBeLessThanOrEqual(1)
+    expect(
+      shares.every((share, index) => {
+        const previous = shares[index - 1]
+        return previous === undefined || previous >= share
+      }),
+    ).toBe(true)
+  }
+
+  it('preserves the split invariants for totals 1..500 and member counts 1..12', () => {
+    for (let total = 1; total <= 500; total++) {
+      for (let members = 1; members <= 12; members++) {
+        expectInvariants(total, members)
+      }
+    }
+  })
+
+  it('preserves the split invariants for large safe integer totals', () => {
+    for (const total of [
+      999999999999,
+      Number.MAX_SAFE_INTEGER,
+      Number.MAX_SAFE_INTEGER - 1,
+      Number.MAX_SAFE_INTEGER - 12345,
+    ]) {
+      for (const members of [1, 2, 3, 7, 12, 37]) {
+        expectInvariants(total, members)
+      }
+    }
+  })
 })
