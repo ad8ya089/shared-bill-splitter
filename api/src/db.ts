@@ -12,6 +12,40 @@ export type MemberRow = {
   created_at: string
 }
 
+export type BillRow = {
+  seq: number
+  id: string
+  home_id: string
+  title: string
+  total_cents: number
+  created_at: string
+}
+
+export type ShareRow = {
+  seq: number
+  id: string
+  bill_id: string
+  member_id: string
+  amount_cents: number
+  paid_at: string | null
+  paid_idempotency_key: string | null
+}
+
+export type BillShare = {
+  id: string
+  memberId: string
+  amountCents: number
+  paidAt: string | null
+}
+
+export type BillWithShares = {
+  id: string
+  homeId: string
+  title: string
+  totalCents: number
+  shares: BillShare[]
+}
+
 export function insertHome(db: D1Database, home: HomeRow) {
   return db
     .prepare('INSERT INTO homes (id, name, created_at) VALUES (?, ?, ?)')
