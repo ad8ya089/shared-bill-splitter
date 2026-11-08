@@ -1,5 +1,14 @@
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string }
 
+export function parseIdempotencyKey(value: string | undefined): ParseResult<string> {
+  const key = value?.trim()
+  if (!key || key.length > 255) {
+    return { ok: false, error: 'idempotency key must be 1 to 255 characters' }
+  }
+
+  return { ok: true, value: key }
+}
+
 function parseText(value: unknown, field: 'name' | 'title'): ParseResult<string> {
   if (typeof value !== 'string') {
     return { ok: false, error: `${field} must be a string` }
