@@ -1,16 +1,20 @@
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string }
 
-export function parseName(value: unknown): ParseResult<string> {
+function parseText(value: unknown, field: 'name' | 'title'): ParseResult<string> {
   if (typeof value !== 'string') {
-    return { ok: false, error: 'name must be a string' }
+    return { ok: false, error: `${field} must be a string` }
   }
 
-  const name = value.trim()
-  if (name.length < 1 || name.length > 200) {
-    return { ok: false, error: 'name must be between 1 and 200 characters' }
+  const text = value.trim()
+  if (text.length < 1 || text.length > 200) {
+    return { ok: false, error: `${field} must be between 1 and 200 characters` }
   }
 
-  return { ok: true, value: name }
+  return { ok: true, value: text }
+}
+
+export function parseName(value: unknown): ParseResult<string> {
+  return parseText(value, 'name')
 }
 
 export function parseCreateNamed(body: unknown): ParseResult<{ name: string }> {
@@ -22,4 +26,12 @@ export function parseCreateNamed(body: unknown): ParseResult<{ name: string }> {
   if (!name.ok) return name
 
   return { ok: true, value: { name: name.value } }
+}
+
+export function parseTotalCents(value: unknown): ParseResult<number> {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+    return { ok: false, error: 'totalCents must be a positive safe integer' }
+  }
+
+  return { ok: true, value }
 }
