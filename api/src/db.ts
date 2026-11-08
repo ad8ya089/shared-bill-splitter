@@ -12,6 +12,13 @@ export type MemberRow = {
   created_at: string
 }
 
+export function insertHome(db: D1Database, home: HomeRow) {
+  return db
+    .prepare('INSERT INTO homes (id, name, created_at) VALUES (?, ?, ?)')
+    .bind(home.id, home.name, home.created_at)
+    .run()
+}
+
 export function findHome(db: D1Database, id: string): Promise<HomeRow | null> {
   return db.prepare('SELECT id, name, created_at FROM homes WHERE id = ?').bind(id).first<HomeRow>()
 }
