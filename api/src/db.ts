@@ -74,3 +74,24 @@ export async function listMembers(db: D1Database, homeId: string): Promise<Membe
 
   return results
 }
+
+export function createBillWithShares(
+  db: D1Database,
+  bill: Omit<BillWithShares, 'shares'> & { shares: Omit<BillShare, 'paidAt'>[] },
+) {
+  const insertBill = db
+    .prepare(
+      'INSERT INTO bills (id, home_id, title, total_cents, created_at) VALUES (?, ?, ?, ?, ?)',
+    )
+    .bind(bill.id, bill.homeId, bill.title, bill.totalCents, new Date().toISOString())
+  const insertShare = db.prepare(
+    'INSERT INTO shares (id, bill_id, member_id, amount_cents) VALUES (?, ?, ?, ?)',
+  )
+
+  return db.batch([
+    insertBill,
+    ...bill.shares.map((share) =>
+      insertShare.bind(share.id, bill.id, share.memberId, share.amountCents),
+    ),
+  ])
+}
