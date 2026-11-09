@@ -48,3 +48,26 @@ describe('JSON errors', () => {
     }
   })
 })
+
+it.each([undefined, '', '   ', 'a'.repeat(256)])(
+  'rejects the key %j without accessing the database',
+  async (key) => {
+    const prepare = vi.spyOn(env.DB, 'prepare').mockImplementation(() => {
+      throw new Error('database must not be accessed')
+    })
+    try {
+      const response = await app.fetch(
+        new Request('http://localhost/api/bills/missing/shares/missing/pay', {
+          method: 'POST',
+          headers: key === undefined ? {} : { 'Idempotency-Key': key },
+        }),
+        env,
+      )
+      expect(response.status).toBe(400)
+      expect(await response.json()).toEqual({ error: expect.any(String) })
+      expect(prepare).not.toHaveBeenCalled()
+    } finally {
+      prepare.mockRestore()
+    }
+  },
+)
