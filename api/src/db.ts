@@ -84,16 +84,16 @@ export function createBillWithShares(
       'INSERT INTO bills (id, home_id, title, total_cents, created_at) VALUES (?, ?, ?, ?, ?)',
     )
     .bind(bill.id, bill.homeId, bill.title, bill.totalCents, new Date().toISOString())
-  const insertShare = db.prepare(
-    'INSERT INTO shares (id, bill_id, member_id, amount_cents) VALUES (?, ?, ?, ?)',
-  )
+  // A single share insert keeps the number of D1 queries constant.
+  const insertShares = db
+    .prepare(
+      `INSERT INTO shares (id, bill_id, member_id, amount_cents)
+       SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.memberId'),
+              json_extract(value, '$.amountCents') FROM json_each(?)`,
+    )
+    .bind(bill.id, JSON.stringify(bill.shares))
 
-  return db.batch([
-    insertBill,
-    ...bill.shares.map((share) =>
-      insertShare.bind(share.id, bill.id, share.memberId, share.amountCents),
-    ),
-  ])
+  return db.batch([insertBill, insertShares])
 }
 
 export async function listBillsWithShares(
