@@ -1,5 +1,6 @@
-import { exports } from 'cloudflare:workers'
+import { env, exports } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
+import { listMembers } from '../src/db'
 import { call, createHome, type Member } from './helpers'
 
 type Home = { id: string; name: string; members: Member[] }
@@ -102,4 +103,15 @@ describe('home reads and member ordering', () => {
     expect(response.status).toBe(422)
     expect(response.body).toEqual({ error: expect.stringMatching(/\S/) })
   })
+})
+
+it('preserves member order when SQLite reverses unordered selects', async () => {
+  const { homeId, members } = await createHome(['Zoya', 'Asha', 'Mina'])
+  await env.DB.exec('PRAGMA reverse_unordered_selects = ON')
+  try {
+    const stored = await listMembers(env.DB, homeId)
+    expect(stored.map((member) => member.id)).toEqual(members.map((member) => member.id))
+  } finally {
+    await env.DB.exec('PRAGMA reverse_unordered_selects = OFF')
+  }
 })
