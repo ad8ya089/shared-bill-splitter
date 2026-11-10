@@ -1,10 +1,10 @@
-export type HomeRow = {
+type HomeRow = {
   id: string
   name: string
   created_at: string
 }
 
-export type MemberRow = {
+type MemberRow = {
   seq: number
   id: string
   home_id: string
@@ -12,7 +12,7 @@ export type MemberRow = {
   created_at: string
 }
 
-export type BillRow = {
+type BillRow = {
   seq: number
   id: string
   home_id: string
@@ -21,7 +21,7 @@ export type BillRow = {
   created_at: string
 }
 
-export type ShareRow = {
+type ShareRow = {
   seq: number
   id: string
   bill_id: string
@@ -31,14 +31,14 @@ export type ShareRow = {
   paid_idempotency_key: string | null
 }
 
-export type BillShare = {
+type BillShare = {
   id: string
   memberId: string
   amountCents: number
   paidAt: string | null
 }
 
-export type BillWithShares = {
+type BillWithShares = {
   id: string
   homeId: string
   title: string
@@ -180,7 +180,7 @@ export async function payShare(
   }
 }
 
-export type BalanceRow = { memberId: string; name: string; outstandingCents: number }
+type BalanceRow = { memberId: string; name: string; outstandingCents: number }
 
 export async function listBalances(db: D1Database, homeId: string): Promise<BalanceRow[]> {
   const { results: balances } = await db

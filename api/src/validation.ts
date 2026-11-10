@@ -1,4 +1,4 @@
-export type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string }
+type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string }
 
 export function parseIdempotencyKey(value: string | undefined): ParseResult<string> {
   const key = value?.trim()
