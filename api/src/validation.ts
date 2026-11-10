@@ -26,8 +26,12 @@ export function parseName(value: unknown): ParseResult<string> {
   return parseText(value, 'name')
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 export function parseCreateNamed(body: unknown): ParseResult<{ name: string }> {
-  if (typeof body !== 'object' || body === null || Array.isArray(body) || !('name' in body)) {
+  if (!isRecord(body) || !('name' in body)) {
     return { ok: false, error: 'body must be an object with a name' }
   }
 
@@ -46,7 +50,7 @@ export function parseTotalCents(value: unknown): ParseResult<number> {
 }
 
 export function parseCreateBill(body: unknown): ParseResult<{ title: string; totalCents: number }> {
-  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+  if (!isRecord(body)) {
     return { ok: false, error: 'body must be an object with a title and totalCents' }
   }
 
