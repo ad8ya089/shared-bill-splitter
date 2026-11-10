@@ -13,6 +13,7 @@
   color: var(--text);
   background: var(--background);
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 * {
@@ -33,10 +34,6 @@ input {
   font: inherit;
 }
 
-button {
-  cursor: pointer;
-}
-
 :focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 4px;
@@ -44,4 +41,143 @@ button {
 
 [role="alert"] {
   color: var(--error);
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+h1 {
+  font-size: clamp(1.8rem, 6vw, 2.5rem);
+  margin: 0.5rem 0 var(--space);
+}
+
+h2 {
+  font-size: 1.3rem;
+  margin: 0 0 var(--space);
+}
+
+h3 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+section {
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+form {
+  display: grid;
+  gap: 0.65rem;
+}
+
+label {
+  font-weight: 600;
+}
+
+input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  color: var(--text);
+  background: var(--surface);
+}
+
+button {
+  cursor: pointer;
+  min-height: 2.75rem;
+  width: fit-content;
+  padding: 0.6rem var(--space);
+  border: 1px solid var(--accent);
+  border-radius: 0.35rem;
+  color: var(--on-accent);
+  background: var(--accent);
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+a {
+  color: var(--accent);
+  text-underline-offset: 0.2em;
+}
+
+.home-id {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.eyebrow,
+.status-note {
+  color: var(--muted);
+  min-height: 1.6em;
+}
+
+.bills,
+.shares {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.bill + .bill,
+.share {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space);
+  margin-top: var(--space);
+}
+
+.bill-heading,
+.share-heading,
+.share-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem var(--space);
+  overflow-wrap: anywhere;
+}
+
+.share-status {
+  align-items: center;
+  margin-top: 0.5rem;
+  color: var(--muted);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #111d26;
+    --surface: #1b2b36;
+    --text: #eef4fa;
+    --muted: #b4c3cd;
+    --border: #50616e;
+    --accent: #83cfc1;
+    --on-accent: #0d2925;
+    --error: #ffb8b8;
+  }
+}
+
+@media (max-width: 400px) {
+  section {
+    padding: var(--space);
+  }
 }
