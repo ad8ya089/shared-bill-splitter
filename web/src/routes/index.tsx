@@ -1,16 +1,22 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { Page } from '../components/Page'
 
 export const Route = createFileRoute('/')({
+  validateSearch: (search: Record<string, unknown>): { homeId: string | undefined } => ({
+    homeId: typeof search.homeId === 'string' ? search.homeId.trim() || undefined : undefined,
+  }),
   component: Home,
 })
 
 function Home() {
+  const { homeId } = Route.useSearch()
+  const navigate = Route.useNavigate()
   return (
-    <main style={{ padding: 24, fontFamily: 'system-ui, sans-serif' }}>
-      <h1>Bill Splitter — starter</h1>
-      <p>
-        Replace this with the app. See <code>README.md</code> at the repo root.
-      </p>
-    </main>
+    <Page
+      homeId={homeId}
+      openHome={(id) => {
+        void navigate({ to: '/', search: { homeId: id } })
+      }}
+    />
   )
 }
