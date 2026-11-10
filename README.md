@@ -62,6 +62,20 @@ The two added GET endpoints let the page load a home with its members and list i
 
 **Enforce integrity in the schema as well as at the request edge.** Named foreign-key, check and unique constraints reject orphan rows, invalid amounts, duplicate bill/member shares and incomplete paid-time/key pairs. Direct database tests check those rules independently of the HTTP parsers.
 
+## Tests
+
+The current suites pass 233 API tests across 15 files and 88 web tests across six files. They cover validation and JSON errors, exact splits, a 300-member bill, fixed membership snapshots, same-key replays, competing parallel payments, scoped missing shares, atomic rollback, named schema constraints and unsafe balance totals. The web tests cover page states and forms, timeout and non-JSON failures, retry-key reuse, duplicate clicks and stale responses.
+
+Mutation checks were run manually: code was deliberately broken to verify that the relevant tests failed, then each mutation was restored. Error tests also check that responses never expose stack traces or database internals.
+
+## Known limits
+
+There is no authentication, editing, deleting or pagination, and member names are not unique. Marking a share paid records a payment; it does not move money. Retry keys live in the current page session and are not persisted across a reload; home and bill creation do not have idempotency keys.
+
+D1's 2 MB string/bound-parameter limit puts one bill in roughly the 15,000-member range, depending on the serialized amounts; this is a payload estimate, not a tested capacity or enforced cap. One batch has a 30-second deadline, and other limits may apply earlier; see [Cloudflare's D1 limits](https://developers.cloudflare.com/d1/platform/limits/).
+
+Amounts above `Number.MAX_SAFE_INTEGER` cents are rejected. If outstanding balances add up beyond the safe-integer range, the balances endpoint returns a JSON 500 instead of a rounded amount.
+
 ## Original assignment brief and submission rules
 
 The original brief is retained below, including the test policy, AI disclosure and video/submission requirements. Its starter-state descriptions refer to the original template.
