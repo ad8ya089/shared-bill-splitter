@@ -11,6 +11,7 @@ import {
   type Home,
   payShare,
 } from '../lib/api'
+import { pending } from '../testing/pending'
 import { Page } from './Page'
 
 vi.mock('../lib/api', () => ({
@@ -41,16 +42,6 @@ const bill: Bill = {
     { id: 'second', memberId: 'ben', amountCents: 333, paidAt: null },
     { id: 'third', memberId: 'chitra', amountCents: 333, paidAt: null },
   ],
-}
-
-function pending<T>() {
-  let finish: (value: T) => void = () => {
-    throw new Error('promise is not ready')
-  }
-  const promise = new Promise<T>((resolve) => {
-    finish = resolve
-  })
-  return { promise, finish: (value: T) => finish(value) }
 }
 
 beforeEach(() => {

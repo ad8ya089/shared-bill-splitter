@@ -1,20 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { pending } from '../testing/pending'
 import { getBills, getHome } from './api'
 import { useHome } from './useHome'
 
 vi.mock('./api', () => ({ getHome: vi.fn(), getBills: vi.fn() }))
 const home = { id: 'A', name: 'Flat A', members: [] }
-
-function pending<T>() {
-  let finish: (value: T) => void = () => {
-    throw new Error('promise is not ready')
-  }
-  const promise = new Promise<T>((resolve) => {
-    finish = resolve
-  })
-  return { promise, finish: (value: T) => finish(value) }
-}
 
 beforeEach(() => {
   vi.resetAllMocks()

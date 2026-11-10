@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { pending } from '../testing/pending'
 import { payShare } from './api'
 import { usePayShare } from './usePayShare'
 
@@ -9,16 +10,6 @@ const share = {
   memberId: 'member',
   amountCents: 334,
   paidAt: '2026-11-09T00:00:00.000Z',
-}
-
-function pending<T>() {
-  let finish: (value: T) => void = () => {
-    throw new Error('promise is not ready')
-  }
-  const promise = new Promise<T>((resolve) => {
-    finish = resolve
-  })
-  return { promise, finish: (value: T) => finish(value) }
 }
 
 beforeEach(() => {
