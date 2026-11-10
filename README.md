@@ -1,4 +1,72 @@
-# SDE Intern Assignment: Shared Bill Splitter
+# Shared bill splitter
+
+Split household bills between the members of a shared home and record when each share is paid. The API uses Hono and Cloudflare D1 on Workers; the page uses React, Vite and TanStack Router.
+
+## Running it
+
+Known working versions: Node.js v22.13.1 and pnpm 11.25.0. From a fresh clone, run these commands at the repository root:
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Open the page at http://localhost:5173. The API runs at http://localhost:8787, with health at http://localhost:8787/api/health; http://localhost:5173/api/health reaches the same endpoint through Vite's proxy. The dev command applies migrations to the local D1 database before starting the API.
+
+Stop the dev command with Ctrl+C, then run:
+
+```bash
+pnpm test
+pnpm test:web
+pnpm check
+pnpm typecheck
+pnpm build
+```
+
+`pnpm test` runs the API suite inside the Workers runtime. `pnpm test:web` runs the web suite, including page, client, hook and money tests. Typechecking covers both packages, and the build produces the web app in `web/dist`.
+
+If pnpm reports ignored build scripts, run `pnpm approve-builds` and allow esbuild and workerd, as the original brief instructs. If `api/wrangler.jsonc` changes, regenerate the binding types with `pnpm --filter bill-splitter-api cf-typegen`.
+
+## API
+
+All API error responses have the shape `{ "error": "message" }`. Unknown routes return 404, and uncaught API errors return 500 with `internal server error`; stack traces and SQL details stay out of responses.
+
+| Method | Path                                     | Success | Errors                                                                            |
+| ------ | ---------------------------------------- | ------- | --------------------------------------------------------------------------------- |
+| GET    | `/api/health`                            | 200     | 500 on an unexpected error                                                        |
+| POST   | `/api/homes`                             | 201     | 422 invalid body                                                                  |
+| GET    | `/api/homes/:homeId` (added)             | 200     | 404 home not found                                                                |
+| POST   | `/api/homes/:homeId/members`             | 201     | 422 invalid body; 404 home not found                                              |
+| POST   | `/api/homes/:homeId/bills`               | 201     | 422 invalid body or no members; 404 home not found                                |
+| GET    | `/api/homes/:homeId/bills` (added)       | 200     | 404 home not found                                                                |
+| POST   | `/api/bills/:billId/shares/:shareId/pay` | 200     | 400 missing/invalid key; 404 bill/share pair not found; 409 paid with another key |
+| GET    | `/api/homes/:homeId/balances`            | 200     | 404 home not found; 500 unsafe balance                                            |
+
+The two added GET endpoints let the page load a home with its members and list its bills. For the checks that apply to a request, the order is header validation (400), body validation (422), resource lookup (404), then state rules (409 or 422).
+
+## Decisions
+
+**Store money as integer cents.** Amounts must be positive safe integers so JavaScript arithmetic and JSON numbers remain exact. Parsing dollars for the form and formatting cents for display happen only in the web app.
+
+**Freeze the split when the bill is created.** Members are read in insertion order; 1000 cents between three members becomes 334, 333, 333, with extra cents going to the earliest members. Adding a member later does not change old shares or paid amounts.
+
+**Let one SQL update choose the payment winner.** `UPDATE shares ... WHERE id = ? AND bill_id = ? AND paid_at IS NULL` can change the share only once. The write itself makes the decision, so there is no read-before-write window and no application transaction or lock to manage.
+
+**Scope idempotency keys to each share.** The same key replays the saved 200 response, including the original paid time; a different key on an already-paid share gets 409. Reusing a key for another share does not link the two payments.
+
+**Create each bill with one atomic batch and two statements.** One statement inserts the bill, and one inserts all shares through `json_each` using a single JSON parameter. The statement count stays constant as membership grows, and a failed share insert rolls back the bill too.
+
+**Return 422 for body problems.** Wrong fields, wrong types and malformed JSON are invalid input rather than server crashes. Small parsers narrow unknown input before resource lookups and return concrete JSON errors.
+
+**Keep payment display tied to saved server data.** A timeout can hide a payment that already committed, so the page retains its key across retryable failures and sends it again. It shows Paid only after reloading a share with a saved paid time, and shows failures beside the still-unpaid share.
+
+**Enforce integrity in the schema as well as at the request edge.** Named foreign-key, check and unique constraints reject orphan rows, invalid amounts, duplicate bill/member shares and incomplete paid-time/key pairs. Direct database tests check those rules independently of the HTTP parsers.
+
+## Original assignment brief and submission rules
+
+The original brief is retained below, including the test policy, AI disclosure and video/submission requirements. Its starter-state descriptions refer to the original template.
+
+### SDE Intern Assignment: Shared Bill Splitter
 
 Welcome. In this assignment you build a small bill splitter for a shared home. It has two parts:
 
@@ -7,7 +75,7 @@ Welcome. In this assignment you build a small bill splitter for a shared home. I
 
 The assignment is small on purpose. We want correct, safe, and clear code. We do not want many features.
 
-## What we look at
+#### What we look at
 
 - **Your code passes the tests.** The tests decide, not opinion. You get the visible tests. We also run extra tests that you do not see.
 - **Your code is safe when things go wrong.** Wrong input, repeated requests, and two requests at the same time must not break your data.
@@ -16,7 +84,7 @@ The assignment is small on purpose. We want correct, safe, and clear code. We do
 
 Take your time. A careful, correct solution is better than a fast one. We expect 2 to 3 days of real work.
 
-## Stack (required)
+#### Stack (required)
 
 - **API:** Hono on Cloudflare Workers
 - **Database:** Cloudflare D1 (SQLite). The binding is `DB` in `api/wrangler.jsonc`.
@@ -27,7 +95,7 @@ Take your time. A careful, correct solution is better than a fast one. We expect
 
 You choose the rest (styling, form library, validation library). Pick tools you can explain.
 
-## The task
+#### The task
 
 The assignment has two parts. Do Part 1 first. Part 2 builds on it.
 
@@ -35,16 +103,16 @@ The assignment has two parts. Do Part 1 first. Part 2 builds on it.
 
 **Errors.** Every error response is JSON: `{ "error": "message" }`.
 
-## Part 1: Homes and members
+#### Part 1: Homes and members
 
 Create a home and add members to it. The order in which members are added matters in Part 2.
 
-#### `POST /api/homes`
+###### `POST /api/homes`
 
 - Request: `{ "name": string }`
 - Success: `201` `{ id, name }`
 
-#### `POST /api/homes/:homeId/members`
+###### `POST /api/homes/:homeId/members`
 
 - Request: `{ "name": string }`
 - Success: `201` `{ id, homeId, name }`
@@ -52,25 +120,25 @@ Create a home and add members to it. The order in which members are added matter
 
 Visible tests: `api/test/homes.test.ts`.
 
-## Part 2: Bill splitting
+#### Part 2: Bill splitting
 
 Add a bill to a home, split it between the members, and let each member pay their share.
 
 All amounts are whole **cents** (integers). `100` cents is 1 dollar. Never use decimals for money.
 
-#### `POST /api/homes/:homeId/bills`
+###### `POST /api/homes/:homeId/bills`
 
 - Request: `{ "title": string, "totalCents": number }`
 - Success: `201` `{ id, homeId, title, totalCents, shares: [{ id, memberId, amountCents, paidAt: null }] }`
 - Errors: `404` home not found. `422` total is not a positive whole number, or the home has no members.
 
-#### `POST /api/bills/:billId/shares/:shareId/pay`
+###### `POST /api/bills/:billId/shares/:shareId/pay`
 
 - Request: header `Idempotency-Key`
 - Success: `200` `{ id, memberId, amountCents, paidAt }`
 - Errors: `400` key missing. `404` bill or share not found. `409` share already paid with a different key.
 
-#### `GET /api/homes/:homeId/balances`
+###### `GET /api/homes/:homeId/balances`
 
 - Success: `200` `{ balances: [{ memberId, name, outstandingCents }] }`
 - Errors: `404` home not found
@@ -83,7 +151,7 @@ All amounts are whole **cents** (integers). `100` cents is 1 dollar. Never use d
 
 Visible tests: `api/test/bills.test.ts` and `api/test/payments.test.ts`.
 
-#### Web page
+###### Web page
 
 Build one page that:
 
@@ -94,7 +162,7 @@ Build one page that:
 
 The page must not crash when the API answers with an error or is slow.
 
-## Cases you must handle
+#### Cases you must handle
 
 You must handle these cases and talk about them in your video:
 
@@ -106,7 +174,7 @@ You must handle these cases and talk about them in your video:
 6. A bill or share that does not exist.
 7. The API answers with a 500 error or is slow. The web page must not crash.
 
-## Run it
+#### Run it
 
 This is a pnpm workspace. Install once at the root.
 
@@ -135,18 +203,18 @@ When you change `api/wrangler.jsonc`, refresh the `Env` types:
 pnpm --filter bill-splitter-api cf-typegen
 ```
 
-## Rules for the tests
+#### Rules for the tests
 
 - The visible tests are in `api/test`. They start with a failing result. Your job is to make them pass.
 - Do **not** change the visible tests or `api/test/helpers.ts`. We compare them with the original.
 - We run extra tests after you submit. They test the cases in "Cases you must handle" more closely.
 
-## AI policy
+#### AI policy
 
 You can use AI tools. Tell us which ones and where in your answers on the form.
 You must understand every line you submit. We check this with your video and in a live call. "The AI wrote it" is not an answer.
 
-## How to submit
+#### How to submit
 
 1. Click **Use this template**, then **Create a new repository**. Make the repository **public**.
 2. Build your solution in your new repository. Small, clear commits are welcome.
