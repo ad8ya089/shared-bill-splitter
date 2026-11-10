@@ -6,6 +6,7 @@ import { parseIdempotencyKey } from '../validation'
 const payments = new Hono<{ Bindings: Env }>()
 
 payments.post('/api/bills/:billId/shares/:shareId/pay', async (c) => {
+  // Reject a bad key before touching the database, even when the share is missing.
   const key = parseIdempotencyKey(c.req.header('Idempotency-Key'))
   if (!key.ok) return jsonError(c, 400, key.error)
 

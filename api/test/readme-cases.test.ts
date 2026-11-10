@@ -61,7 +61,7 @@ describe('the README cases', () => {
   })
 
   it('The API answers with a 500 error or is slow. The web page must not crash.', async () => {
-    // The UI half is deferred; this proves the API exposes a clean failure and stays available.
+    // This covers the API failure; page tests cover the browser response.
     const { homeId } = await createHome(['Asha'])
     expect((await createBill(homeId, Number.MAX_SAFE_INTEGER)).status).toBe(201)
     expect((await createBill(homeId, Number.MAX_SAFE_INTEGER)).status).toBe(201)

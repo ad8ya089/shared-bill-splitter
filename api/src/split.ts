@@ -6,6 +6,7 @@ export function splitCents(totalCents: number, memberCount: number): number[] {
     throw new RangeError('memberCount must be a positive safe integer')
   }
 
+  // Earlier members get the extra cents so no two shares differ by more than one.
   const base = Math.floor(totalCents / memberCount)
   const extra = totalCents % memberCount
 

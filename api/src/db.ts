@@ -84,7 +84,7 @@ export function createBillWithShares(
       'INSERT INTO bills (id, home_id, title, total_cents, created_at) VALUES (?, ?, ?, ?, ?)',
     )
     .bind(bill.id, bill.homeId, bill.title, bill.totalCents, new Date().toISOString())
-  // A single share insert keeps the number of D1 queries constant.
+  // One JSON parameter keeps share queries constant; the batch saves everything or nothing.
   const insertShares = db
     .prepare(
       `INSERT INTO shares (id, bill_id, member_id, amount_cents)
@@ -152,6 +152,7 @@ export async function payShare(
   | { status: 'already paid' }
   | { status: 'missing' }
 > {
+  // Only the unpaid row can win; a separate read before writing would race.
   const payment = await db
     .prepare(
       `UPDATE shares SET paid_at = ?, paid_idempotency_key = ?
@@ -170,6 +171,7 @@ export async function payShare(
   }
 
   return {
+    // With no changed row, a matching key means the first attempt already won.
     status: payment.meta.changes === 1 ? 'paid' : 'replayed',
     share: {
       id: share.id,
@@ -196,6 +198,7 @@ export async function listBalances(db: D1Database, homeId: string): Promise<Bala
     .bind(homeId)
     .all<BalanceRow>()
 
+  // Refuse a rounded balance rather than returning a silently wrong amount.
   for (const balance of balances) {
     if (!Number.isSafeInteger(balance.outstandingCents)) {
       throw new RangeError('outstanding cents exceed the safe integer range')
