@@ -65,14 +65,14 @@ export function findHome(db: D1Database, id: string): Promise<HomeRow | null> {
 }
 
 export async function listMembers(db: D1Database, homeId: string): Promise<MemberRow[]> {
-  const { results } = await db
+  const { results: members } = await db
     .prepare(
       'SELECT seq, id, home_id, name, created_at FROM members WHERE home_id = ? ORDER BY seq',
     )
     .bind(homeId)
     .all<MemberRow>()
 
-  return results
+  return members
 }
 
 export function createBillWithShares(
@@ -117,9 +117,9 @@ export async function listBillsWithShares(
     .bind(homeId)
     .all<ShareRow>()
 
-  const byId = new Map<string, BillWithShares>()
+  const billsById = new Map<string, BillWithShares>()
   for (const bill of bills) {
-    byId.set(bill.id, {
+    billsById.set(bill.id, {
       id: bill.id,
       homeId: bill.home_id,
       title: bill.title,
@@ -128,7 +128,7 @@ export async function listBillsWithShares(
     })
   }
   for (const share of shares) {
-    const bill = byId.get(share.bill_id)
+    const bill = billsById.get(share.bill_id)
     if (bill) {
       bill.shares.push({
         id: share.id,
@@ -139,7 +139,7 @@ export async function listBillsWithShares(
     }
   }
 
-  return [...byId.values()]
+  return [...billsById.values()]
 }
 
 export async function payShare(
@@ -159,23 +159,23 @@ export async function payShare(
     )
     .bind(new Date().toISOString(), key, shareId, billId)
     .run()
-  const row = await db
+  const share = await db
     .prepare('SELECT * FROM shares WHERE id = ? AND bill_id = ?')
     .bind(shareId, billId)
     .first<ShareRow>()
 
-  if (!row) return { status: 'missing' }
-  if (payment.meta.changes === 0 && row.paid_idempotency_key !== key) {
+  if (!share) return { status: 'missing' }
+  if (payment.meta.changes === 0 && share.paid_idempotency_key !== key) {
     return { status: 'already paid' }
   }
 
   return {
     status: payment.meta.changes === 1 ? 'paid' : 'replayed',
     share: {
-      id: row.id,
-      memberId: row.member_id,
-      amountCents: row.amount_cents,
-      paidAt: row.paid_at,
+      id: share.id,
+      memberId: share.member_id,
+      amountCents: share.amount_cents,
+      paidAt: share.paid_at,
     },
   }
 }
