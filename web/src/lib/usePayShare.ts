@@ -25,6 +25,7 @@ export function usePayShare(onSettled: () => void): {
   const pay = useCallback(
     async (billId: string, shareId: string) => {
       if (paying.current.has(shareId)) return
+      // A failed request may already have committed, so retries must keep the same key.
       const key = keys.current.get(shareId) ?? crypto.randomUUID()
       keys.current.set(shareId, key)
       paying.current.add(shareId)

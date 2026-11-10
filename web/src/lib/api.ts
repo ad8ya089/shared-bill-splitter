@@ -82,6 +82,7 @@ async function request<T>(
       signal: controller.signal,
     })
     status = response.status
+    // Error pages can be HTML or empty; failed parsing must stay a result, not a crash.
     const text = await response.text()
     let body: unknown
     try {

@@ -14,6 +14,7 @@ export function parseDollars(input: string): number | null {
 
   const [whole = '', fraction = ''] = text.split('.')
   const digits = `${whole || '0'}${fraction.padEnd(2, '0')}`
+  // Build cents from digits to avoid rounding a decimal dollar value.
   let cents = 0
   for (const digit of digits) {
     cents = cents * 10 + (digit.charCodeAt(0) - 48)
