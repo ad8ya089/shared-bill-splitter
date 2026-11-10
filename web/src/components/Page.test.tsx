@@ -1,7 +1,7 @@
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { type Bill, createHome, getBills, getHome, type Home } from '../lib/api'
+import { type Bill, createHome, getBills, getHome, type Home, payShare } from '../lib/api'
 import { Page } from './Page'
 
 vi.mock('../lib/api', () => ({
@@ -189,5 +189,136 @@ describe('page states', () => {
     expect(await screen.findByText('Paid')).toBeInstanceOf(HTMLElement)
     expect(screen.queryByRole('button', { name: /Pay/ })).toBeNull()
     expect(document.querySelector('time')).toBeNull()
+  })
+})
+
+const paidShare = {
+  id: 'first',
+  memberId: 'asha',
+  amountCents: 334,
+  paidAt: '2026-11-10T00:00:00.000Z',
+}
+const paidBill: Bill = {
+  ...bill,
+  shares: bill.shares.map((share) => (share.id === 'first' ? paidShare : share)),
+}
+
+describe('page payments', () => {
+  beforeEach(() => {
+    vi.mocked(getBills).mockResolvedValue({ ok: true, data: [bill] })
+  })
+
+  it('shows Paying and only shows Paid after the server reload', async () => {
+    const waiting = pending<Awaited<ReturnType<typeof payShare>>>()
+    const refreshed = pending<Awaited<ReturnType<typeof getBills>>>()
+    vi.mocked(payShare).mockReturnValue(waiting.promise)
+    vi.mocked(getBills)
+      .mockResolvedValueOnce({ ok: true, data: [bill] })
+      .mockReturnValueOnce(refreshed.promise)
+    const user = userEvent.setup()
+    render(<Page homeId="home" openHome={vi.fn()} />)
+    await user.click(await screen.findByRole('button', { name: 'Pay $3.34 for Asha' }))
+    expect(screen.getByRole('button', { name: /Paying.*for Asha/ })).toHaveProperty(
+      'disabled',
+      true,
+    )
+    expect(screen.getByRole('button', { name: 'Pay $3.33 for Ben' })).toHaveProperty(
+      'disabled',
+      false,
+    )
+    await act(async () => {
+      waiting.finish({ ok: true, data: paidShare })
+    })
+    expect(screen.getByText('Refreshing...').getAttribute('aria-live')).toBe('polite')
+    expect(screen.getAllByText('Unpaid')).toHaveLength(3)
+    expect(screen.queryByText(/^Paid/)).toBeNull()
+    await act(async () => {
+      refreshed.finish({ ok: true, data: [paidBill] })
+    })
+    expect(screen.getByText(/^Paid/)).toBeInstanceOf(HTMLElement)
+    expect(screen.queryByRole('button', { name: /for Asha/ })).toBeNull()
+  })
+
+  it('keeps a timed-out share unpaid and retries with the same key', async () => {
+    const retry = pending<Awaited<ReturnType<typeof payShare>>>()
+    vi.mocked(payShare)
+      .mockResolvedValueOnce({ ok: false, message: 'the server took too long to answer' })
+      .mockReturnValueOnce(retry.promise)
+    vi.mocked(getBills)
+      .mockResolvedValueOnce({ ok: true, data: [bill] })
+      .mockResolvedValue({ ok: true, data: [paidBill] })
+    const user = userEvent.setup()
+    render(<Page homeId="home" openHome={vi.fn()} />)
+    await user.click(await screen.findByRole('button', { name: 'Pay $3.34 for Asha' }))
+    expect(screen.getByRole('alert').textContent).toBe('the server took too long to answer')
+    expect(screen.getAllByText('Unpaid')).toHaveLength(3)
+    expect(getBills).toHaveBeenCalledTimes(1)
+    const retryButton = screen.getByRole('button', { name: 'Try again $3.34 for Asha' })
+    expect(retryButton).toHaveProperty('disabled', false)
+    await user.click(retryButton)
+    expect(payShare).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(payShare).mock.calls[1]).toEqual(vi.mocked(payShare).mock.calls[0])
+    await act(async () => {
+      retry.finish({ ok: true, data: paidShare })
+    })
+    await screen.findByText(/^Paid/)
+  })
+
+  it('shows a conflict message and refreshes the paid share', async () => {
+    const refreshed = pending<Awaited<ReturnType<typeof getBills>>>()
+    vi.mocked(payShare).mockResolvedValue({ ok: false, status: 409, message: 'share already paid' })
+    vi.mocked(getBills)
+      .mockResolvedValueOnce({ ok: true, data: [bill] })
+      .mockReturnValueOnce(refreshed.promise)
+    const user = userEvent.setup()
+    render(<Page homeId="home" openHome={vi.fn()} />)
+    await user.click(await screen.findByRole('button', { name: 'Pay $3.34 for Asha' }))
+    expect(screen.getByRole('alert').textContent).toBe('already paid')
+    expect(getBills).toHaveBeenCalledTimes(2)
+    expect(screen.getByText('Refreshing...')).toBeInstanceOf(HTMLElement)
+    await act(async () => {
+      refreshed.finish({ ok: true, data: [paidBill] })
+    })
+    expect(screen.getByText(/^Paid/)).toBeInstanceOf(HTMLElement)
+    expect(screen.queryByRole('button', { name: /for Asha/ })).toBeNull()
+  })
+
+  it('sends one request for a double click', async () => {
+    const waiting = pending<Awaited<ReturnType<typeof payShare>>>()
+    vi.mocked(payShare).mockReturnValue(waiting.promise)
+    const user = userEvent.setup()
+    render(<Page homeId="home" openHome={vi.fn()} />)
+    await user.dblClick(await screen.findByRole('button', { name: 'Pay $3.34 for Asha' }))
+    expect(payShare).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: /Paying.*for Asha/ })).toHaveProperty(
+      'disabled',
+      true,
+    )
+    await act(async () => {
+      waiting.finish({ ok: false, message: 'network unavailable' })
+    })
+  })
+
+  it('pays two shares independently and leaves the third button available', async () => {
+    const first = pending<Awaited<ReturnType<typeof payShare>>>()
+    const second = pending<Awaited<ReturnType<typeof payShare>>>()
+    vi.mocked(payShare).mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const user = userEvent.setup()
+    render(<Page homeId="home" openHome={vi.fn()} />)
+    await user.click(await screen.findByRole('button', { name: 'Pay $3.34 for Asha' }))
+    await user.click(screen.getByRole('button', { name: 'Pay $3.33 for Ben' }))
+    expect(screen.getAllByRole('button', { name: /Paying/ })).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Pay $3.33 for Chitra' })).toHaveProperty(
+      'disabled',
+      false,
+    )
+    expect(vi.mocked(payShare).mock.calls[0]?.[2]).not.toBe(vi.mocked(payShare).mock.calls[1]?.[2])
+    await act(async () => {
+      first.finish({ ok: false, message: 'network unavailable' })
+    })
+    expect(screen.getByRole('button', { name: /Paying.*for Ben/ })).toHaveProperty('disabled', true)
+    await act(async () => {
+      second.finish({ ok: false, message: 'network unavailable' })
+    })
   })
 })
