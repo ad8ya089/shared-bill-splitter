@@ -34,12 +34,9 @@ export function BillList({
                   const amount = formatCents(share.amountCents)
                   const payment = stateOf(share.id)
                   const date = share.paidAt === null ? null : new Date(share.paidAt)
-                  const action =
-                    payment.status === 'failed'
-                      ? 'Try again'
-                      : payment.status === 'paying'
-                        ? 'Paying...'
-                        : 'Pay'
+                  let action = 'Pay'
+                  if (payment.status === 'failed') action = 'Try again'
+                  else if (payment.status === 'paying') action = 'Paying...'
                   return (
                     <li key={share.id} className="share">
                       <div className="share-heading">

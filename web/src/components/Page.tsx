@@ -23,16 +23,17 @@ export function Page({
       </main>
     )
   }
+  if (state.status === 'error' && state.notFound) {
+    return (
+      <main>
+        <h1>Home not found</h1>
+        <button type="button" onClick={() => openHome(undefined)}>
+          Start over
+        </button>
+      </main>
+    )
+  }
   if (state.status === 'error') {
-    if (state.notFound)
-      return (
-        <main>
-          <h1>Home not found</h1>
-          <button type="button" onClick={() => openHome(undefined)}>
-            Start over
-          </button>
-        </main>
-      )
     return (
       <main>
         <h1>Bill splitter</h1>

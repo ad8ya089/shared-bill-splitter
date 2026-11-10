@@ -36,14 +36,16 @@ function isHome(value: unknown): value is Home {
   )
 }
 
+function isCents(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+}
+
 function isShare(value: unknown): value is Share {
   return (
     isRecord(value) &&
     isText(value.id) &&
     isText(value.memberId) &&
-    typeof value.amountCents === 'number' &&
-    Number.isSafeInteger(value.amountCents) &&
-    value.amountCents >= 0 &&
+    isCents(value.amountCents) &&
     (value.paidAt === null || isText(value.paidAt))
   )
 }
@@ -54,8 +56,7 @@ function isBill(value: unknown): value is Bill {
     isText(value.id) &&
     isText(value.homeId) &&
     isText(value.title) &&
-    typeof value.totalCents === 'number' &&
-    Number.isSafeInteger(value.totalCents) &&
+    isCents(value.totalCents) &&
     value.totalCents > 0 &&
     Array.isArray(value.shares) &&
     value.shares.every(isShare)
@@ -89,12 +90,12 @@ async function request<T>(
       body = undefined
     }
     if (!response.ok) {
-      const message =
-        isRecord(body) && isText(body.error)
-          ? body.error
-          : status >= 500
-            ? 'the server had a problem, try again'
-            : 'the server sent an unexpected response'
+      let message = 'the server sent an unexpected response'
+      if (isRecord(body) && isText(body.error)) {
+        message = body.error
+      } else if (status >= 500) {
+        message = 'the server had a problem, try again'
+      }
       return { ok: false, message, status }
     }
     if (!guard(body))

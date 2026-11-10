@@ -44,12 +44,9 @@ export function usePayShare(onSettled: () => void): {
         onSettled()
         return
       }
-      const message =
-        payment.status === 409
-          ? 'already paid'
-          : payment.status === 404
-            ? 'this share no longer exists'
-            : payment.message
+      let message = payment.message
+      if (payment.status === 409) message = 'already paid'
+      else if (payment.status === 404) message = 'this share no longer exists'
       setStates((previous) => new Map(previous).set(shareId, { status: 'failed', message }))
       if (cannotRetry) onSettled()
     },
