@@ -14,10 +14,10 @@ export function useHome(homeId: string | undefined): {
   const [state, setState] = useState<HomeState>({
     status: homeId === undefined ? 'idle' : 'loading',
   })
-  const request = useRef(0)
+  const requestId = useRef(0)
 
   const reload = useCallback(async () => {
-    const current = ++request.current
+    const id = ++requestId.current
     if (homeId === undefined) {
       setState({ status: 'idle' })
       return
@@ -28,7 +28,7 @@ export function useHome(homeId: string | undefined): {
         : { status: 'loading' },
     )
     const [home, bills] = await Promise.all([getHome(homeId), getBills(homeId)])
-    if (current !== request.current) return
+    if (id !== requestId.current) return
     if (!home.ok) {
       setState({ status: 'error', message: home.message, notFound: home.status === 404 })
       return
@@ -43,7 +43,7 @@ export function useHome(homeId: string | undefined): {
   useEffect(() => {
     void reload()
     return () => {
-      request.current++
+      requestId.current++
     }
   }, [reload])
 

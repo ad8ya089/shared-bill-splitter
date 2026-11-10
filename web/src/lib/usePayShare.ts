@@ -12,13 +12,13 @@ export function usePayShare(onSettled: () => void): {
 } {
   const keys = useRef(new Map<string, string>())
   const paying = useRef(new Set<string>())
-  const mounted = useRef(true)
+  const isMounted = useRef(true)
   const [states, setStates] = useState(new Map<string, PaymentState>())
 
   useEffect(() => {
-    mounted.current = true
+    isMounted.current = true
     return () => {
-      mounted.current = false
+      isMounted.current = false
     }
   }, [])
 
@@ -32,9 +32,9 @@ export function usePayShare(onSettled: () => void): {
 
       const payment = await payShare(billId, shareId, key)
       paying.current.delete(shareId)
-      const terminal = !payment.ok && (payment.status === 409 || payment.status === 404)
-      if (payment.ok || terminal) keys.current.delete(shareId)
-      if (!mounted.current) return
+      const cannotRetry = !payment.ok && (payment.status === 409 || payment.status === 404)
+      if (payment.ok || cannotRetry) keys.current.delete(shareId)
+      if (!isMounted.current) return
       if (payment.ok) {
         setStates((previous) => {
           const next = new Map(previous)
@@ -51,7 +51,7 @@ export function usePayShare(onSettled: () => void): {
             ? 'this share no longer exists'
             : payment.message
       setStates((previous) => new Map(previous).set(shareId, { status: 'failed', message }))
-      if (terminal) onSettled()
+      if (cannotRetry) onSettled()
     },
     [onSettled],
   )
