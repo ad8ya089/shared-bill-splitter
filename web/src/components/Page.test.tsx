@@ -1,7 +1,16 @@
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { type Bill, createHome, getBills, getHome, type Home, payShare } from '../lib/api'
+import {
+  addMember,
+  type Bill,
+  createBill,
+  createHome,
+  getBills,
+  getHome,
+  type Home,
+  payShare,
+} from '../lib/api'
 import { Page } from './Page'
 
 vi.mock('../lib/api', () => ({
@@ -319,6 +328,143 @@ describe('page payments', () => {
     expect(screen.getByRole('button', { name: /Paying.*for Ben/ })).toHaveProperty('disabled', true)
     await act(async () => {
       second.finish({ ok: false, message: 'network unavailable' })
+    })
+  })
+})
+
+describe('member and bill forms', () => {
+  it('adds a member with Enter, clears the field and reloads the names', async () => {
+    const added = { id: 'dev', homeId: 'home', name: 'Dev' }
+    vi.mocked(addMember).mockResolvedValue({ ok: true, data: added })
+    vi.mocked(getHome)
+      .mockResolvedValueOnce({ ok: true, data: home })
+      .mockResolvedValue({ ok: true, data: { ...home, members: [...home.members, added] } })
+    const user = userEvent.setup()
+    render(<Page homeId="home" openHome={vi.fn()} />)
+    const field = await screen.findByLabelText('Member name')
+    await user.type(field, '  Dev  {Enter}')
+    expect(addMember).toHaveBeenCalledWith('home', 'Dev')
+    await screen.findByText('Dev')
+    expect(field).toHaveProperty('value', '')
+    expect(getHome).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the member name and shows a failed request', async () => {
+    vi.mocked(addMember).mockResolvedValue({ ok: false, message: 'could not reach the server' })
+    const user = userEvent.setup()
+    render(<Page homeId="home" openHome={vi.fn()} />)
+    const field = await screen.findByLabelText('Member name')
+    await user.type(field, 'Dev')
+    await user.click(screen.getByRole('button', { name: 'Add member' }))
+    expect(screen.getByRole('alert').textContent).toBe('could not reach the server')
+    expect(field).toHaveProperty('value', 'Dev')
+    expect(screen.getByRole('button', { name: 'Add member' })).toHaveProperty('disabled', false)
+    expect(getHome).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a blank member name without calling the API', async () => {
+    const user = userEvent.setup()
+    render(<Page homeId="home" openHome={vi.fn()} />)
+    await user.type(await screen.findByLabelText('Member name'), '   ')
+    await user.click(screen.getByRole('button', { name: 'Add member' }))
+    expect(screen.getByRole('alert').textContent).toBe('enter a member name')
+    expect(addMember).not.toHaveBeenCalled()
+  })
+
+  it.each(['', 'abc', '0', '-5', '1.234', '1e3', '1,000'])(
+    'rejects the bill amount %j without calling the API',
+    async (amount) => {
+      const user = userEvent.setup()
+      render(<Page homeId="home" openHome={vi.fn()} />)
+      await user.type(await screen.findByLabelText('Bill title'), 'Rent')
+      const field = screen.getByLabelText('Amount (USD)')
+      expect(field.getAttribute('inputmode')).toBe('decimal')
+      if (amount) await user.type(field, amount)
+      await user.click(screen.getByRole('button', { name: 'Add bill' }))
+      expect(screen.getByRole('alert').textContent).toContain('positive amount')
+      expect(createBill).not.toHaveBeenCalled()
+    },
+  )
+
+  it('rejects a blank bill title without calling the API', async () => {
+    const user = userEvent.setup()
+    render(<Page homeId="home" openHome={vi.fn()} />)
+    await user.type(await screen.findByLabelText('Bill title'), '   ')
+    await user.type(screen.getByLabelText('Amount (USD)'), '12.50')
+    await user.click(screen.getByRole('button', { name: 'Add bill' }))
+    expect(screen.getByRole('alert').textContent).toBe('enter a bill title')
+    expect(createBill).not.toHaveBeenCalled()
+  })
+
+  it('submits integer cents and a trimmed title once, disables the button and clears on success', async () => {
+    const waiting = pending<Awaited<ReturnType<typeof createBill>>>()
+    const created = { ...bill, id: 'rent', title: 'Rent', totalCents: 1250 }
+    vi.mocked(createBill).mockReturnValue(waiting.promise)
+    vi.mocked(getBills)
+      .mockResolvedValueOnce({ ok: true, data: [] })
+      .mockResolvedValue({ ok: true, data: [created] })
+    const user = userEvent.setup()
+    render(<Page homeId="home" openHome={vi.fn()} />)
+    const title = await screen.findByLabelText('Bill title')
+    const amount = screen.getByLabelText('Amount (USD)')
+    await user.type(title, '  Rent  ')
+    await user.type(amount, '12.50')
+    await user.dblClick(screen.getByRole('button', { name: 'Add bill' }))
+    expect(createBill).toHaveBeenCalledExactlyOnceWith('home', 'Rent', 1250)
+    expect(screen.getByRole('button', { name: 'Adding...' })).toHaveProperty('disabled', true)
+    expect(title).toHaveProperty('value', '  Rent  ')
+    expect(amount).toHaveProperty('value', '12.50')
+    await act(async () => {
+      waiting.finish({ ok: true, data: created })
+    })
+    await screen.findByRole('heading', { name: 'Rent' })
+    expect(title).toHaveProperty('value', '')
+    expect(amount).toHaveProperty('value', '')
+    expect(getBills).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps both bill fields after failure and allows another attempt', async () => {
+    vi.mocked(createBill).mockResolvedValue({ ok: false, message: 'could not reach the server' })
+    const user = userEvent.setup()
+    render(<Page homeId="home" openHome={vi.fn()} />)
+    const title = await screen.findByLabelText('Bill title')
+    const amount = screen.getByLabelText('Amount (USD)')
+    await user.type(title, 'Rent')
+    await user.type(amount, '12.50{Enter}')
+    expect(createBill).toHaveBeenCalledWith('home', 'Rent', 1250)
+    expect(screen.getByRole('alert').textContent).toBe('could not reach the server')
+    expect(title).toHaveProperty('value', 'Rent')
+    expect(amount).toHaveProperty('value', '12.50')
+    expect(screen.getByRole('button', { name: 'Add bill' })).toHaveProperty('disabled', false)
+  })
+
+  it('does not create two homes from a double click', async () => {
+    const waiting = pending<Awaited<ReturnType<typeof createHome>>>()
+    vi.mocked(createHome).mockReturnValue(waiting.promise)
+    const openHome = vi.fn()
+    const user = userEvent.setup()
+    render(<Page homeId={undefined} openHome={openHome} />)
+    await user.type(screen.getByLabelText('Home name'), 'Our home')
+    await user.dblClick(screen.getByRole('button', { name: 'Create home' }))
+    expect(createHome).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Creating...' })).toHaveProperty('disabled', true)
+    await act(async () => {
+      waiting.finish({ ok: true, data: { id: 'new-home', name: 'Our home' } })
+    })
+    expect(openHome).toHaveBeenCalledExactlyOnceWith('new-home')
+  })
+
+  it('does not add a member twice while a request is pending', async () => {
+    const waiting = pending<Awaited<ReturnType<typeof addMember>>>()
+    vi.mocked(addMember).mockReturnValue(waiting.promise)
+    const user = userEvent.setup()
+    render(<Page homeId="home" openHome={vi.fn()} />)
+    await user.type(await screen.findByLabelText('Member name'), 'Dev')
+    await user.dblClick(screen.getByRole('button', { name: 'Add member' }))
+    expect(addMember).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Adding...' })).toHaveProperty('disabled', true)
+    await act(async () => {
+      waiting.finish({ ok: false, message: 'network unavailable' })
     })
   })
 })
